@@ -12,18 +12,17 @@ export class FamilyTree {
 
   getPerson(nameOrId) {
     if (!nameOrId) return null;
+    if (this.people.has(nameOrId)) return this.people.get(nameOrId);
     const norm = this._norm(nameOrId).toLowerCase();
     for (const p of this.people.values()) {
-      if (p.id === nameOrId || p.name.toLowerCase() === norm) return p;
+      if (p.name.toLowerCase() === norm) return p;
     }
     return null;
   }
 
-  addPerson(name, x = 100, y = 100) {
+  addPerson(name, x = 120, y = 100) {
     const clean = this._norm(name);
     if (!clean) throw new Error('Name cannot be empty');
-    const existing = this.getPerson(clean);
-    if (existing) return existing;
 
     const id = 'p_' + Math.random().toString(36).substring(2, 9);
     const person = { id, name: clean, x: Math.round(x), y: Math.round(y) };
@@ -50,6 +49,23 @@ export class FamilyTree {
     });
 
     return true;
+  }
+
+  // Remove / Undo a specific union
+  removeUnion(unionId) {
+    this.unions = this.unions.filter(u => u.id !== unionId);
+  }
+
+  // Unlink a child from any parent union
+  unlinkChild(childId) {
+    for (const u of this.unions) {
+      u.children = u.children.filter(cid => cid !== childId);
+    }
+  }
+
+  // Reset all relations / unions (keeps all people)
+  resetRelations() {
+    this.unions = [];
   }
 
   // Create union of 2 parents
@@ -82,7 +98,6 @@ export class FamilyTree {
 
   // Union of 2 parents makes a child
   addChild(parentA, parentB, childName) {
-    // If only 2 arguments given, parentB is childName (single parent)
     let p1Name = parentA;
     let p2Name = parentB;
     let cName = childName;
@@ -95,7 +110,7 @@ export class FamilyTree {
     const p1 = this.getPerson(p1Name) || this.addPerson(p1Name);
     const p2 = p2Name ? (this.getPerson(p2Name) || this.addPerson(p2Name)) : null;
 
-    // Default child position below parents
+    // Position child below parents
     const childX = p2 ? Math.round((p1.x + p2.x) / 2) : p1.x;
     const childY = p1.y + 160;
     const child = this.getPerson(cName) || this.addPerson(cName, childX, childY);
@@ -104,7 +119,7 @@ export class FamilyTree {
       throw new Error('Child cannot be their own parent');
     }
 
-    // Find or create the union
+    // Find or create union
     let union = null;
     for (const u of this.unions) {
       if (p2) {

@@ -16,11 +16,12 @@
 
     <!-- Quick Direct Add Bar -->
     <div class="add-bar">
-      <input type="text" id="directNameInput" placeholder="Person name (e.g. mom)" autocomplete="off">
+      <input type="text" id="directNameInput" placeholder="Person name (e.g. Alice)..." autocomplete="off">
       <button class="btn-primary" id="btnDirectAdd">+ Add Person</button>
       <div class="divider"></div>
-      <button id="btnQuickSample">Load Sample (Mom + Dad ➔ egg)</button>
-      <button id="btnClearAll">Clear Canvas</button>
+      <button id="btnResetRelations" title="Undo all relations (keeps all people on canvas)">✂ Reset Relations</button>
+      <button id="btnQuickSample" title="Load demo tree">Load Sample</button>
+      <button id="btnClearAll" title="Clear all people and relations">Clear Canvas</button>
     </div>
   </header>
 
@@ -46,7 +47,7 @@
 
     <!-- Canvas Helper Tip -->
     <div class="canvas-tip">
-      💡 <strong>Tip:</strong> Drag cards anywhere. Drag card onto another to partner. Click <strong>[+ Child]</strong> on union line. Double-click canvas to add. Press <strong>E</strong> for CLI.
+      💡 <strong>Quick Guide:</strong> Drag cards anywhere. Drag bottom handle <code>(↓)</code> onto another card to partner. Click <code>[+ Child]</code> on union to add child. Click <code>[✂ Break]</code> to undo union. Click <code>[✕]</code> on card to delete.
     </div>
   </main>
 
@@ -63,6 +64,8 @@
       <span class="chip" data-cmd="add ">add &lt;name&gt;</span>
       <span class="chip" data-cmd="union ">union &lt;p1&gt; &lt;p2&gt;</span>
       <span class="chip" data-cmd="child ">child &lt;p1&gt; &lt;p2&gt; &lt;child&gt;</span>
+      <span class="chip" data-cmd="break ">break &lt;p1&gt; &lt;p2&gt;</span>
+      <span class="chip" data-cmd="reset-relations">reset-relations</span>
       <span class="chip" data-cmd="del ">del &lt;name&gt;</span>
       <span class="chip" data-cmd="sample">sample</span>
       <span class="chip" data-cmd="list">list</span>

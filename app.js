@@ -1,4 +1,4 @@
-// app.js - Bare Family Tree: HTML Cards + SVG Union Connectors + Real Drag-and-Drop
+// app.js - Bare Family Tree: HTML Cards + Direct Add + Undo / Reset Relations
 
 class FamilyTree {
   constructor() {
@@ -12,18 +12,17 @@ class FamilyTree {
 
   getPerson(nameOrId) {
     if (!nameOrId) return null;
+    if (this.people.has(nameOrId)) return this.people.get(nameOrId);
     const norm = this._norm(nameOrId).toLowerCase();
     for (const p of this.people.values()) {
-      if (p.id === nameOrId || p.name.toLowerCase() === norm) return p;
+      if (p.name.toLowerCase() === norm) return p;
     }
     return null;
   }
 
-  addPerson(name, x = 120, y = 100) {
+  addPerson(name, x = 160, y = 120) {
     const clean = this._norm(name);
     if (!clean) return null;
-    const existing = this.getPerson(clean);
-    if (existing) return existing;
 
     const id = 'p_' + Math.random().toString(36).substring(2, 9);
     const person = { id, name: clean, x: Math.round(x), y: Math.round(y) };
@@ -50,6 +49,23 @@ class FamilyTree {
     });
 
     return true;
+  }
+
+  // Undo / Delete a specific union
+  removeUnion(unionId) {
+    this.unions = this.unions.filter(u => u.id !== unionId);
+  }
+
+  // Unlink a child from parents
+  unlinkChild(childId) {
+    for (const u of this.unions) {
+      u.children = u.children.filter(cid => cid !== childId);
+    }
+  }
+
+  // Reset all relations / unions (keeps all people)
+  resetRelations() {
+    this.unions = [];
   }
 
   addUnion(parentA, parentB) {
@@ -93,7 +109,7 @@ class FamilyTree {
 
     // Position child below parents
     const childX = p2 ? Math.round((p1.x + p2.x) / 2) : p1.x;
-    const childY = p1.y + 150;
+    const childY = p1.y + 160;
     const child = this.getPerson(cName) || this.addPerson(cName, childX, childY);
 
     if (child.id === p1.id || (p2 && child.id === p2.id)) return null;
@@ -197,6 +213,7 @@ const svgLinesLayer = document.getElementById('svgLinesLayer');
 const statsCount = document.getElementById('statsCount');
 const directNameInput = document.getElementById('directNameInput');
 const btnDirectAdd = document.getElementById('btnDirectAdd');
+const btnResetRelations = document.getElementById('btnResetRelations');
 const btnQuickSample = document.getElementById('btnQuickSample');
 const btnClearAll = document.getElementById('btnClearAll');
 
@@ -281,23 +298,40 @@ function render() {
       unionCenterY = p1.y + CARD_H;
     }
 
-    // Union Button [+ Child] in the center between partners
-    const unionBtn = document.createElement('button');
-    unionBtn.className = 'union-btn';
-    unionBtn.textContent = '+ Child';
-    unionBtn.title = `Add child born from ${p1.name}${p2 ? ' & ' + p2.name : ''}`;
-    unionBtn.style.left = `${unionCenterX}px`;
-    unionBtn.style.top = `${unionCenterY}px`;
+    // Union Badge: contains [+ Child] and [✂ Break]
+    const unionBadge = document.createElement('div');
+    unionBadge.className = 'union-badge';
+    unionBadge.style.left = `${unionCenterX}px`;
+    unionBadge.style.top = `${unionCenterY}px`;
 
-    unionBtn.addEventListener('click', (e) => {
+    // Button 1: Add Child
+    const addKidBtn = document.createElement('button');
+    addKidBtn.className = 'union-btn-add';
+    addKidBtn.textContent = '+ Child';
+    addKidBtn.title = `Add child born from ${p1.name}${p2 ? ' & ' + p2.name : ''}`;
+    addKidBtn.onclick = (e) => {
       e.stopPropagation();
       const childName = prompt(`Enter child name for ${p1.name}${p2 ? ' & ' + p2.name : ''}:`);
       if (childName && childName.trim()) {
         tree.addChild(p1.name, p2 ? p2.name : null, childName.trim());
         render();
       }
-    });
-    cardsLayer.appendChild(unionBtn);
+    };
+    unionBadge.appendChild(addKidBtn);
+
+    // Button 2: Break / Undo Union
+    const breakBtn = document.createElement('button');
+    breakBtn.className = 'union-btn-break';
+    breakBtn.textContent = '✂ Break';
+    breakBtn.title = `Undo union between ${p1.name}${p2 ? ' and ' + p2.name : ''}`;
+    breakBtn.onclick = (e) => {
+      e.stopPropagation();
+      tree.removeUnion(u.id);
+      render();
+    };
+    unionBadge.appendChild(breakBtn);
+
+    cardsLayer.appendChild(unionBadge);
 
     // If children exist, draw branch down to children
     const kids = u.children.map(cid => tree.people.get(cid)).filter(Boolean);
@@ -357,39 +391,54 @@ function render() {
     title.textContent = p.name;
     card.appendChild(title);
 
-    // Delete Button (✕)
+    // Delete Button (top right ✕)
     const delBtn = document.createElement('button');
     delBtn.className = 'card-del-btn';
     delBtn.textContent = '✕';
     delBtn.title = `Delete ${p.name}`;
-    delBtn.addEventListener('click', (e) => {
+    delBtn.onclick = (e) => {
       e.stopPropagation();
       tree.deletePerson(p.id);
       render();
-    });
+    };
     card.appendChild(delBtn);
+
+    // If person is a child in a union, show unlink button (top left ⤹)
+    const parents = tree.getParents(p.id);
+    if (parents.length > 0) {
+      const unlinkBtn = document.createElement('button');
+      unlinkBtn.className = 'card-unlink-btn';
+      unlinkBtn.textContent = '⤹';
+      unlinkBtn.title = `Unlink ${p.name} from parents (${parents.map(x => x.name).join(' & ')})`;
+      unlinkBtn.onclick = (e) => {
+        e.stopPropagation();
+        tree.unlinkChild(p.id);
+        render();
+      };
+      card.appendChild(unlinkBtn);
+    }
 
     // Bottom Handle (drag to partner or child)
     const handle = document.createElement('div');
     handle.className = 'card-handle';
     handle.textContent = '↓';
-    handle.title = 'Drag onto another person to partner or link';
-    handle.addEventListener('mousedown', (e) => {
+    handle.title = 'Drag onto another person to partner';
+    handle.onmousedown = (e) => {
       e.stopPropagation();
       startConnecting(p, e);
-    });
+    };
     card.appendChild(handle);
 
     // Card Dragging (moves the card)
-    card.addEventListener('mousedown', (e) => {
-      if (e.target.closest('.card-del-btn') || e.target.closest('.card-handle')) return;
+    card.onmousedown = (e) => {
+      if (e.target.closest('.card-del-btn') || e.target.closest('.card-unlink-btn') || e.target.closest('.card-handle')) return;
       activeDragCard = p;
       const rect = card.getBoundingClientRect();
       dragOffset = {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top
       };
-    });
+    };
 
     cardsLayer.appendChild(card);
   });
@@ -453,7 +502,7 @@ window.addEventListener('mouseup', (e) => {
       const targetId = targetElem.id.replace('card_', '');
       const targetPerson = tree.people.get(targetId);
       if (targetPerson) {
-        // Default action: make them partners (Union)
+        // Partner them together in a union
         tree.addUnion(connectingSource.id, targetPerson.id);
         render();
       }
@@ -465,7 +514,7 @@ window.addEventListener('mouseup', (e) => {
 
 // Double click canvas to add new person
 canvasContainer.addEventListener('dblclick', (e) => {
-  if (e.target.closest('.person-card') || e.target.closest('.union-btn')) return;
+  if (e.target.closest('.person-card') || e.target.closest('.union-badge')) return;
   const name = prompt('Enter new person name:');
   if (name && name.trim()) {
     const rect = canvasContainer.getBoundingClientRect();
@@ -476,37 +525,59 @@ canvasContainer.addEventListener('dblclick', (e) => {
   }
 });
 
-// Direct Add Button & Input
+// Direct Add Button & Input (Works 100% reliably)
 btnDirectAdd.addEventListener('click', () => {
   const name = directNameInput.value.trim();
-  if (name) {
-    // Stagger position slightly
-    const offset = (tree.people.size % 6) * 40;
-    tree.addPerson(name, 120 + offset, 100 + offset);
-    directNameInput.value = '';
-    render();
+  if (!name) {
+    directNameInput.focus();
+    return;
   }
+  // Place newly added card right in visible center area
+  const containerRect = canvasContainer.getBoundingClientRect();
+  const cWidth = containerRect.width || 800;
+  const cHeight = containerRect.height || 600;
+  const offset = (tree.people.size % 6) * 35;
+  const x = Math.max(30, cWidth / 2 - CARD_W / 2 + offset - 80);
+  const y = Math.max(30, cHeight / 2 - CARD_H / 2 + offset - 80);
+
+  const p = tree.addPerson(name, x, y);
+  directNameInput.value = '';
+  render();
+
+  // Flash the newly created card
+  if (p) {
+    const el = document.getElementById(`card_${p.id}`);
+    if (el) {
+      el.classList.add('flash-new');
+      setTimeout(() => el.classList.remove('flash-new'), 1200);
+    }
+  }
+  directNameInput.focus();
 });
 
 directNameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
+    e.preventDefault();
     btnDirectAdd.click();
   }
+});
+
+// Reset Relations Button (Clears all unions, keeps people)
+btnResetRelations.addEventListener('click', () => {
+  tree.resetRelations();
+  render();
 });
 
 // Load Sample Tree (Mom + Dad ➔ egg, egg2)
 function loadSampleTree() {
   tree.fromJSON({ people: [], unions: [] });
-  // Mom & Dad positioned side by side
   const mom = tree.addPerson('mom', 220, 80);
   const dad = tree.addPerson('dad', 440, 80);
   tree.addUnion(mom.id, dad.id);
 
-  // Children born from their union positioned below
   tree.addChild('mom', 'dad', 'egg');
   tree.addChild('mom', 'dad', 'egg2');
 
-  // Adjust child positions nicely
   const egg = tree.getPerson('egg');
   const egg2 = tree.getPerson('egg2');
   if (egg) { egg.x = 220; egg.y = 260; }
@@ -556,7 +627,10 @@ function runCommand(raw) {
       printCli('Commands:', 'info');
       printCli('  add <name>                          - Add person', 'info');
       printCli('  union <p1> <p2>                     - Partner two people', 'info');
-      printCli('  child <p1> <p2> <child>             - Union of 2 parents makes a child', 'info');
+      printCli('  child <p1> <p2> <child>             - Union makes a child', 'info');
+      printCli('  break <p1> <p2>                     - Undo union between p1 and p2', 'info');
+      printCli('  unlink <child>                      - Unlink child from parents', 'info');
+      printCli('  reset-relations                     - Remove all relations (keep people)', 'info');
       printCli('  del <name>                          - Delete person', 'info');
       printCli('  sample                              - Load mom + dad -> egg, egg2', 'info');
       printCli('  list                                - Print people & unions', 'info');
@@ -583,6 +657,39 @@ function runCommand(raw) {
       if (args.length < 4) return printCli('Usage: child <parent1> <parent2> <childName>', 'err');
       tree.addChild(args[1], args[2], args[3]);
       printCli(`Added child "${args[3]}" to union of ${args[1]} & ${args[2]}`, 'success');
+      render();
+      break;
+
+    case 'break':
+      if (args.length < 3) return printCli('Usage: break <p1> <p2>', 'err');
+      const p1 = tree.getPerson(args[1]);
+      const p2 = tree.getPerson(args[2]);
+      if (p1 && p2) {
+        tree.unions = tree.unions.filter(u => !(
+          (u.p1 === p1.id && u.p2 === p2.id) || (u.p1 === p2.id && u.p2 === p1.id)
+        ));
+        printCli(`Broken union between ${args[1]} and ${args[2]}`, 'success');
+        render();
+      } else {
+        printCli('Persons not found', 'err');
+      }
+      break;
+
+    case 'unlink':
+      if (args.length < 2) return printCli('Usage: unlink <childName>', 'err');
+      const ch = tree.getPerson(args.slice(1).join(' '));
+      if (ch) {
+        tree.unlinkChild(ch.id);
+        printCli(`Unlinked ${ch.name}`, 'success');
+        render();
+      } else {
+        printCli('Person not found', 'err');
+      }
+      break;
+
+    case 'reset-relations':
+      tree.resetRelations();
+      printCli('All relations reset (people preserved)', 'success');
       render();
       break;
 
