@@ -20,9 +20,9 @@ export class FamilyTree {
     return null;
   }
 
-  addPerson(name, x = 120, y = 100) {
+  addPerson(name, x = 160, y = 120) {
     const clean = this._norm(name);
-    if (!clean) throw new Error('Name cannot be empty');
+    if (!clean) return null;
 
     const id = 'p_' + Math.random().toString(36).substring(2, 9);
     const person = { id, name: clean, x: Math.round(x), y: Math.round(y) };
@@ -35,7 +35,7 @@ export class FamilyTree {
     if (!p) return false;
     this.people.delete(p.id);
 
-    // Remove from all unions
+    // Remove from unions
     this.unions = this.unions.filter(u => {
       if (u.p1 === p.id && u.p2 === p.id) return false;
       if (u.p1 === p.id) {
@@ -51,31 +51,26 @@ export class FamilyTree {
     return true;
   }
 
-  // Remove / Undo a specific union
   removeUnion(unionId) {
     this.unions = this.unions.filter(u => u.id !== unionId);
   }
 
-  // Unlink a child from any parent union
   unlinkChild(childId) {
     for (const u of this.unions) {
       u.children = u.children.filter(cid => cid !== childId);
     }
   }
 
-  // Reset all relations / unions (keeps all people)
   resetRelations() {
     this.unions = [];
   }
 
-  // Create union of 2 parents
   addUnion(parentA, parentB) {
     const p1 = this.getPerson(parentA) || this.addPerson(parentA);
     const p2 = parentB ? (this.getPerson(parentB) || this.addPerson(parentB)) : null;
 
-    if (p2 && p1.id === p2.id) throw new Error('Cannot partner with oneself');
+    if (p2 && p1.id === p2.id) return null;
 
-    // Check existing
     for (const u of this.unions) {
       if (p2) {
         if ((u.p1 === p1.id && u.p2 === p2.id) || (u.p1 === p2.id && u.p2 === p1.id)) {
@@ -96,7 +91,6 @@ export class FamilyTree {
     return union;
   }
 
-  // Union of 2 parents makes a child
   addChild(parentA, parentB, childName) {
     let p1Name = parentA;
     let p2Name = parentB;
@@ -110,16 +104,12 @@ export class FamilyTree {
     const p1 = this.getPerson(p1Name) || this.addPerson(p1Name);
     const p2 = p2Name ? (this.getPerson(p2Name) || this.addPerson(p2Name)) : null;
 
-    // Position child below parents
     const childX = p2 ? Math.round((p1.x + p2.x) / 2) : p1.x;
     const childY = p1.y + 160;
     const child = this.getPerson(cName) || this.addPerson(cName, childX, childY);
 
-    if (child.id === p1.id || (p2 && child.id === p2.id)) {
-      throw new Error('Child cannot be their own parent');
-    }
+    if (child.id === p1.id || (p2 && child.id === p2.id)) return null;
 
-    // Find or create union
     let union = null;
     for (const u of this.unions) {
       if (p2) {
@@ -249,5 +239,37 @@ export class FamilyTree {
     if (data && Array.isArray(data.unions)) {
       this.unions = data.unions;
     }
+  }
+}
+
+// History Tracker for Undo / Redo (Ctrl+Z / Ctrl+Y)
+export class HistoryTracker {
+  constructor(tree, maxSnapshots = 50) {
+    this.tree = tree;
+    this.maxSnapshots = maxSnapshots;
+    this.undoStack = [];
+    this.redoStack = [];
+  }
+
+  record() {
+    this.undoStack.push(JSON.stringify(this.tree.toJSON()));
+    if (this.undoStack.length > this.maxSnapshots) this.undoStack.shift();
+    this.redoStack = [];
+  }
+
+  undo() {
+    if (this.undoStack.length === 0) return false;
+    this.redoStack.push(JSON.stringify(this.tree.toJSON()));
+    const prev = JSON.parse(this.undoStack.pop());
+    this.tree.fromJSON(prev);
+    return true;
+  }
+
+  redo() {
+    if (this.redoStack.length === 0) return false;
+    this.undoStack.push(JSON.stringify(this.tree.toJSON()));
+    const next = JSON.parse(this.redoStack.pop());
+    this.tree.fromJSON(next);
+    return true;
   }
 }

@@ -19,6 +19,9 @@
       <input type="text" id="directNameInput" placeholder="Person name (e.g. Alice)..." autocomplete="off">
       <button class="btn-primary" id="btnDirectAdd">+ Add Person</button>
       <div class="divider"></div>
+      <button id="btnUndo" title="Undo (Ctrl+Z)">↺ Undo</button>
+      <button id="btnRedo" title="Redo (Ctrl+Y)">↻ Redo</button>
+      <div class="divider"></div>
       <button id="btnResetRelations" title="Undo all relations (keeps all people on canvas)">✂ Reset Relations</button>
       <button id="btnQuickSample" title="Load demo tree">Load Sample</button>
       <button id="btnClearAll" title="Clear all people and relations">Clear Canvas</button>
@@ -47,7 +50,7 @@
 
     <!-- Canvas Helper Tip -->
     <div class="canvas-tip">
-      💡 <strong>Quick Guide:</strong> Drag cards anywhere. Drag bottom handle <code>(↓)</code> onto another card to partner. Click <code>[+ Child]</code> on union to add child. Click <code>[✂ Break]</code> to undo union. Click <code>[✕]</code> on card to delete.
+      💡 <strong>Quick Guide:</strong> Drag cards anywhere. Drag handle <code>(↓)</code> to partner. Click <code>[+ Child]</code> to add child. Click <code>[✂ Break]</code> to undo union. Press <strong>Ctrl+Z</strong> to undo!
     </div>
   </main>
 
@@ -61,6 +64,8 @@
       <button class="cli-close" id="cliCloseBtn">✕</button>
     </div>
     <div class="cli-chips">
+      <span class="chip" data-cmd="undo">undo (Ctrl+Z)</span>
+      <span class="chip" data-cmd="redo">redo (Ctrl+Y)</span>
       <span class="chip" data-cmd="add ">add &lt;name&gt;</span>
       <span class="chip" data-cmd="union ">union &lt;p1&gt; &lt;p2&gt;</span>
       <span class="chip" data-cmd="child ">child &lt;p1&gt; &lt;p2&gt; &lt;child&gt;</span>
@@ -72,7 +77,7 @@
       <span class="chip" data-cmd="help">help</span>
     </div>
     <div class="cli-log" id="cliLog">
-      <div class="log-info">🌳 Bare Family Tree CLI. Type "help" or click commands above.</div>
+      <div class="log-info">🌳 Bare Family Tree CLI. Type "help" or click commands above. Ctrl+Z to undo.</div>
     </div>
     <div class="cli-input-box">
       <span class="prompt">tree&gt;</span>

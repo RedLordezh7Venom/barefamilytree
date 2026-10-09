@@ -1,4 +1,4 @@
-// app.js - Bare Family Tree: HTML Cards + Direct Add + Undo / Reset Relations
+// app.js - Bare Family Tree: HTML Cards + Direct Add + Undo/Redo (Ctrl+Z)
 
 class FamilyTree {
   constructor() {
@@ -35,7 +35,6 @@ class FamilyTree {
     if (!p) return false;
     this.people.delete(p.id);
 
-    // Remove from unions
     this.unions = this.unions.filter(u => {
       if (u.p1 === p.id && u.p2 === p.id) return false;
       if (u.p1 === p.id) {
@@ -51,19 +50,16 @@ class FamilyTree {
     return true;
   }
 
-  // Undo / Delete a specific union
   removeUnion(unionId) {
     this.unions = this.unions.filter(u => u.id !== unionId);
   }
 
-  // Unlink a child from parents
   unlinkChild(childId) {
     for (const u of this.unions) {
       u.children = u.children.filter(cid => cid !== childId);
     }
   }
 
-  // Reset all relations / unions (keeps all people)
   resetRelations() {
     this.unions = [];
   }
@@ -107,7 +103,6 @@ class FamilyTree {
     const p1 = this.getPerson(p1Name) || this.addPerson(p1Name);
     const p2 = p2Name ? (this.getPerson(p2Name) || this.addPerson(p2Name)) : null;
 
-    // Position child below parents
     const childX = p2 ? Math.round((p1.x + p2.x) / 2) : p1.x;
     const childY = p1.y + 160;
     const child = this.getPerson(cName) || this.addPerson(cName, childX, childY);
@@ -199,12 +194,48 @@ class FamilyTree {
 }
 
 // -------------------------------------------------------------
-// Interactive UI Controller
+// Interactive UI Controller with Undo / Redo (Ctrl+Z)
 // -------------------------------------------------------------
 
 const tree = new FamilyTree();
 const CARD_W = 140;
 const CARD_H = 54;
+
+// History Stacks
+const undoStack = [];
+const redoStack = [];
+
+function recordState() {
+  undoStack.push(JSON.stringify(tree.toJSON()));
+  if (undoStack.length > 50) undoStack.shift();
+  redoStack.length = 0; // Clear redo upon new mutation
+  updateUndoRedoUI();
+}
+
+function undo() {
+  if (undoStack.length === 0) return false;
+  redoStack.push(JSON.stringify(tree.toJSON()));
+  const prevState = JSON.parse(undoStack.pop());
+  tree.fromJSON(prevState);
+  render();
+  updateUndoRedoUI();
+  return true;
+}
+
+function redo() {
+  if (redoStack.length === 0) return false;
+  undoStack.push(JSON.stringify(tree.toJSON()));
+  const nextState = JSON.parse(redoStack.pop());
+  tree.fromJSON(nextState);
+  render();
+  updateUndoRedoUI();
+  return true;
+}
+
+function updateUndoRedoUI() {
+  btnUndo.style.opacity = undoStack.length > 0 ? '1' : '0.4';
+  btnRedo.style.opacity = redoStack.length > 0 ? '1' : '0.4';
+}
 
 // DOM Elements
 const canvasContainer = document.getElementById('canvasContainer');
@@ -213,6 +244,8 @@ const svgLinesLayer = document.getElementById('svgLinesLayer');
 const statsCount = document.getElementById('statsCount');
 const directNameInput = document.getElementById('directNameInput');
 const btnDirectAdd = document.getElementById('btnDirectAdd');
+const btnUndo = document.getElementById('btnUndo');
+const btnRedo = document.getElementById('btnRedo');
 const btnResetRelations = document.getElementById('btnResetRelations');
 const btnQuickSample = document.getElementById('btnQuickSample');
 const btnClearAll = document.getElementById('btnClearAll');
@@ -220,6 +253,7 @@ const btnClearAll = document.getElementById('btnClearAll');
 // Dragging Card State
 let activeDragCard = null;
 let dragOffset = { x: 0, y: 0 };
+let cardMoved = false;
 
 // Dragging Connection State (from handle)
 let connectingSource = null;
@@ -313,6 +347,7 @@ function render() {
       e.stopPropagation();
       const childName = prompt(`Enter child name for ${p1.name}${p2 ? ' & ' + p2.name : ''}:`);
       if (childName && childName.trim()) {
+        recordState();
         tree.addChild(p1.name, p2 ? p2.name : null, childName.trim());
         render();
       }
@@ -326,6 +361,7 @@ function render() {
     breakBtn.title = `Undo union between ${p1.name}${p2 ? ' and ' + p2.name : ''}`;
     breakBtn.onclick = (e) => {
       e.stopPropagation();
+      recordState();
       tree.removeUnion(u.id);
       render();
     };
@@ -398,6 +434,7 @@ function render() {
     delBtn.title = `Delete ${p.name}`;
     delBtn.onclick = (e) => {
       e.stopPropagation();
+      recordState();
       tree.deletePerson(p.id);
       render();
     };
@@ -412,6 +449,7 @@ function render() {
       unlinkBtn.title = `Unlink ${p.name} from parents (${parents.map(x => x.name).join(' & ')})`;
       unlinkBtn.onclick = (e) => {
         e.stopPropagation();
+        recordState();
         tree.unlinkChild(p.id);
         render();
       };
@@ -433,6 +471,7 @@ function render() {
     card.onmousedown = (e) => {
       if (e.target.closest('.card-del-btn') || e.target.closest('.card-unlink-btn') || e.target.closest('.card-handle')) return;
       activeDragCard = p;
+      cardMoved = false;
       const rect = card.getBoundingClientRect();
       dragOffset = {
         x: e.clientX - rect.left,
@@ -463,6 +502,10 @@ function startConnecting(person, e) {
 window.addEventListener('mousemove', (e) => {
   // If moving a card
   if (activeDragCard) {
+    if (!cardMoved) {
+      recordState();
+      cardMoved = true;
+    }
     const containerRect = canvasContainer.getBoundingClientRect();
     const newX = e.clientX - containerRect.left - dragOffset.x;
     const newY = e.clientY - containerRect.top - dragOffset.y;
@@ -502,7 +545,7 @@ window.addEventListener('mouseup', (e) => {
       const targetId = targetElem.id.replace('card_', '');
       const targetPerson = tree.people.get(targetId);
       if (targetPerson) {
-        // Partner them together in a union
+        recordState();
         tree.addUnion(connectingSource.id, targetPerson.id);
         render();
       }
@@ -517,6 +560,7 @@ canvasContainer.addEventListener('dblclick', (e) => {
   if (e.target.closest('.person-card') || e.target.closest('.union-badge')) return;
   const name = prompt('Enter new person name:');
   if (name && name.trim()) {
+    recordState();
     const rect = canvasContainer.getBoundingClientRect();
     const x = e.clientX - rect.left - CARD_W / 2;
     const y = e.clientY - rect.top - CARD_H / 2;
@@ -532,7 +576,7 @@ btnDirectAdd.addEventListener('click', () => {
     directNameInput.focus();
     return;
   }
-  // Place newly added card right in visible center area
+  recordState();
   const containerRect = canvasContainer.getBoundingClientRect();
   const cWidth = containerRect.width || 800;
   const cHeight = containerRect.height || 600;
@@ -544,7 +588,6 @@ btnDirectAdd.addEventListener('click', () => {
   directNameInput.value = '';
   render();
 
-  // Flash the newly created card
   if (p) {
     const el = document.getElementById(`card_${p.id}`);
     if (el) {
@@ -562,14 +605,20 @@ directNameInput.addEventListener('keydown', (e) => {
   }
 });
 
-// Reset Relations Button (Clears all unions, keeps people)
+// Undo / Redo Buttons
+btnUndo.addEventListener('click', () => undo());
+btnRedo.addEventListener('click', () => redo());
+
+// Reset Relations Button
 btnResetRelations.addEventListener('click', () => {
+  recordState();
   tree.resetRelations();
   render();
 });
 
-// Load Sample Tree (Mom + Dad ➔ egg, egg2)
+// Load Sample Tree
 function loadSampleTree() {
+  recordState();
   tree.fromJSON({ people: [], unions: [] });
   const mom = tree.addPerson('mom', 220, 80);
   const dad = tree.addPerson('dad', 440, 80);
@@ -591,8 +640,43 @@ btnQuickSample.addEventListener('click', () => {
 });
 
 btnClearAll.addEventListener('click', () => {
+  recordState();
   tree.fromJSON({ people: [], unions: [] });
   render();
+});
+
+// -------------------------------------------------------------
+// Global Keyboard Handlers (Ctrl+Z Undo / Ctrl+Y Redo, Hotkey 'E')
+// -------------------------------------------------------------
+
+window.addEventListener('keydown', (e) => {
+  const isInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+
+  // Ctrl+Z / Cmd+Z for Undo
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
+    if (!isInput) {
+      e.preventDefault();
+      undo();
+      return;
+    }
+  }
+
+  // Ctrl+Y / Cmd+Y or Ctrl+Shift+Z for Redo
+  if ((e.ctrlKey || e.metaKey) && ((e.key === 'y' || e.key === 'Y') || ((e.key === 'z' || e.key === 'Z') && e.shiftKey))) {
+    if (!isInput) {
+      e.preventDefault();
+      redo();
+      return;
+    }
+  }
+
+  // Esc closes CLI
+  if (e.key === 'Escape') {
+    toggleCli(false);
+  } else if ((e.key === 'e' || e.key === 'E') && !isInput) {
+    e.preventDefault();
+    toggleCli();
+  }
 });
 
 // -------------------------------------------------------------
@@ -625,6 +709,8 @@ function runCommand(raw) {
   switch (action) {
     case 'help':
       printCli('Commands:', 'info');
+      printCli('  undo                                - Undo last action (Ctrl+Z)', 'info');
+      printCli('  redo                                - Redo action (Ctrl+Y)', 'info');
       printCli('  add <name>                          - Add person', 'info');
       printCli('  union <p1> <p2>                     - Partner two people', 'info');
       printCli('  child <p1> <p2> <child>             - Union makes a child', 'info');
@@ -638,8 +724,19 @@ function runCommand(raw) {
       printCli('  exit                                - Close CLI drawer', 'info');
       break;
 
+    case 'undo':
+      if (undo()) printCli('Undid last action', 'success');
+      else printCli('Nothing to undo', 'info');
+      break;
+
+    case 'redo':
+      if (redo()) printCli('Redid action', 'success');
+      else printCli('Nothing to redo', 'info');
+      break;
+
     case 'add':
       if (args.length < 2) return printCli('Usage: add <name>', 'err');
+      recordState();
       tree.addPerson(args.slice(1).join(' '));
       printCli(`Added ${args.slice(1).join(' ')}`, 'success');
       render();
@@ -648,6 +745,7 @@ function runCommand(raw) {
     case 'union':
     case 'partner':
       if (args.length < 3) return printCli('Usage: union <p1> <p2>', 'err');
+      recordState();
       tree.addUnion(args[1], args[2]);
       printCli(`Union created between ${args[1]} and ${args[2]}`, 'success');
       render();
@@ -655,6 +753,7 @@ function runCommand(raw) {
 
     case 'child':
       if (args.length < 4) return printCli('Usage: child <parent1> <parent2> <childName>', 'err');
+      recordState();
       tree.addChild(args[1], args[2], args[3]);
       printCli(`Added child "${args[3]}" to union of ${args[1]} & ${args[2]}`, 'success');
       render();
@@ -665,6 +764,7 @@ function runCommand(raw) {
       const p1 = tree.getPerson(args[1]);
       const p2 = tree.getPerson(args[2]);
       if (p1 && p2) {
+        recordState();
         tree.unions = tree.unions.filter(u => !(
           (u.p1 === p1.id && u.p2 === p2.id) || (u.p1 === p2.id && u.p2 === p1.id)
         ));
@@ -679,6 +779,7 @@ function runCommand(raw) {
       if (args.length < 2) return printCli('Usage: unlink <childName>', 'err');
       const ch = tree.getPerson(args.slice(1).join(' '));
       if (ch) {
+        recordState();
         tree.unlinkChild(ch.id);
         printCli(`Unlinked ${ch.name}`, 'success');
         render();
@@ -688,6 +789,7 @@ function runCommand(raw) {
       break;
 
     case 'reset-relations':
+      recordState();
       tree.resetRelations();
       printCli('All relations reset (people preserved)', 'success');
       render();
@@ -697,6 +799,7 @@ function runCommand(raw) {
     case 'delete':
     case 'rm':
       if (args.length < 2) return printCli('Usage: del <name>', 'err');
+      recordState();
       if (tree.deletePerson(args.slice(1).join(' '))) {
         printCli(`Deleted ${args.slice(1).join(' ')}`, 'success');
         render();
@@ -742,16 +845,6 @@ cliInputField.addEventListener('keydown', (e) => {
   }
 });
 
-window.addEventListener('keydown', (e) => {
-  const isInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
-  if (e.key === 'Escape') {
-    toggleCli(false);
-  } else if ((e.key === 'e' || e.key === 'E') && !isInput) {
-    e.preventDefault();
-    toggleCli();
-  }
-});
-
 cliToggleBtn.addEventListener('click', () => toggleCli(true));
 cliCloseBtn.addEventListener('click', () => toggleCli(false));
 
@@ -768,3 +861,4 @@ if (!load() || tree.people.size === 0) {
 } else {
   render();
 }
+updateUndoRedoUI();

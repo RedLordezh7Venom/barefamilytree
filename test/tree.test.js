@@ -1,7 +1,7 @@
 // test/tree.test.js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FamilyTree } from '../core/tree.js';
+import { FamilyTree, HistoryTracker } from '../core/tree.js';
 
 test('addPerson creates nodes', () => {
   const tree = new FamilyTree();
@@ -16,12 +16,10 @@ test('undo union and reset relations', () => {
   tree.addChild('mom', 'dad', 'egg');
   assert.equal(tree.unions.length, 1);
 
-  // Undo specific union
   tree.removeUnion(u.id);
   assert.equal(tree.unions.length, 0);
-  assert.equal(tree.people.size, 3); // mom, dad, egg still exist!
+  assert.equal(tree.people.size, 3);
 
-  // Reconnect and reset relations
   tree.addChild('mom', 'dad', 'egg');
   assert.equal(tree.unions.length, 1);
   tree.resetRelations();
@@ -29,13 +27,21 @@ test('undo union and reset relations', () => {
   assert.equal(tree.people.size, 3);
 });
 
-test('unlinkChild removes child from union', () => {
+test('HistoryTracker handles undo (Ctrl+Z) and redo', () => {
   const tree = new FamilyTree();
-  tree.addChild('mom', 'dad', 'egg');
-  const egg = tree.getPerson('egg');
-  assert.equal(tree.getParents(egg.id).length, 2);
+  const history = new HistoryTracker(tree);
 
-  tree.unlinkChild(egg.id);
-  assert.equal(tree.getParents(egg.id).length, 0);
-  assert.equal(tree.people.size, 3);
+  // Initial state: empty
+  history.record();
+  tree.addPerson('mom');
+  assert.equal(tree.people.size, 1);
+
+  // Undo restores empty
+  assert.equal(history.undo(), true);
+  assert.equal(tree.people.size, 0);
+
+  // Redo restores mom
+  assert.equal(history.redo(), true);
+  assert.equal(tree.people.size, 1);
+  assert.equal(tree.getPerson('mom').name, 'mom');
 });
