@@ -81,7 +81,21 @@ export class FamilyTree {
     return { a, type, b };
   }
 
+  isAncestor(ancestorId, personId, visited = new Set()) {
+    if (visited.has(personId)) return false;
+    visited.add(personId);
+    for (const p of this.getParents(personId)) {
+      if (p.id === ancestorId || this.isAncestor(ancestorId, p.id, visited)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   _addDirectedEdge(fromId, toId, type) {
+    if (type === 'parent' && this.isAncestor(toId, fromId)) {
+      throw new Error('Cannot add relation: would create an ancestral loop/cycle');
+    }
     const exists = this.relations.some(r => r.from === fromId && r.to === toId && r.type === type);
     if (!exists) {
       this.relations.push({ from: fromId, to: toId, type });
@@ -185,8 +199,9 @@ export class FamilyTree {
     const genMap = new Map();
     const visited = new Set();
 
-    // Assign generation depths
+    // Assign generation depths (guarded against recursive loops)
     const assignGen = (id, currentGen) => {
+      if (currentGen > 50) return; // Prevent runaway recursion
       const prev = genMap.get(id) ?? -Infinity;
       if (currentGen > prev) {
         genMap.set(id, currentGen);
@@ -239,7 +254,21 @@ export class FamilyTree {
 
     const sortedGens = Array.from(genBuckets.keys()).sort((a, b) => a - b);
     sortedGens.forEach((gen) => {
-      const row = genBuckets.get(gen);
+      const rawRow = genBuckets.get(gen);
+      // Group spouses adjacently
+      const row = [];
+      const placed = new Set();
+      for (const person of rawRow) {
+        if (placed.has(person.id)) continue;
+        row.push(person);
+        placed.add(person.id);
+        for (const sp of this.getSpouses(person.id)) {
+          if (!placed.has(sp.id) && rawRow.some(p => p.id === sp.id)) {
+            row.push(sp);
+            placed.add(sp.id);
+          }
+        }
+      }
       const totalWidth = row.length * CARD_WIDTH + (row.length - 1) * GAP_X;
       const startX = -totalWidth / 2;
 

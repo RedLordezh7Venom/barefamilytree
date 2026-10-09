@@ -68,3 +68,52 @@ test('computeLayout calculates generational depths', () => {
   assert.equal(child.gen, 2);
   assert.ok(elder.y < parent.y && parent.y < child.y);
 });
+
+test('deletePerson removes node and cascades relation cleanup', () => {
+  const tree = new FamilyTree();
+  tree.addRelation('Parent', 'parent', 'Child');
+  tree.addRelation('Parent', 'spouse', 'Partner');
+  assert.equal(tree.people.size, 3);
+  assert.equal(tree.relations.length, 2);
+
+  const deleted = tree.deletePerson('Parent');
+  assert.equal(deleted, true);
+  assert.equal(tree.people.size, 2);
+  assert.equal(tree.relations.length, 0);
+  assert.equal(tree.getPerson('Parent'), null);
+});
+
+test('ancestral cycles throw error and prevent infinite loops', () => {
+  const tree = new FamilyTree();
+  tree.addRelation('Alice', 'parent', 'Bob');
+  tree.addRelation('Bob', 'parent', 'Charlie');
+
+  // Attempting Charlie parent Alice must throw
+  assert.throws(() => {
+    tree.addRelation('Charlie', 'parent', 'Alice');
+  }, /ancestral loop\/cycle/);
+});
+
+test('findPath handles disconnected individuals gracefully', () => {
+  const tree = new FamilyTree();
+  tree.addPerson('Lonely Traveler');
+  tree.addRelation('Family A', 'parent', 'Family B');
+
+  const res = tree.findPath('Lonely Traveler', 'Family A');
+  assert.equal(res.path, null);
+  assert.ok(res.description.includes('No connection found'));
+});
+
+test('computeLayout groups spouses adjacent in generation row', () => {
+  const tree = new FamilyTree();
+  tree.addPerson('Stranger 1');
+  tree.addPerson('Stranger 2');
+  tree.addRelation('Husband', 'spouse', 'Wife');
+
+  const layout = tree.computeLayout();
+  const husbandIdx = layout.nodes.findIndex(n => n.name === 'Husband');
+  const wifeIdx = layout.nodes.findIndex(n => n.name === 'Wife');
+
+  // Husband and wife should be placed adjacent in the row
+  assert.equal(Math.abs(husbandIdx - wifeIdx), 1);
+});

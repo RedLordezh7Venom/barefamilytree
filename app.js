@@ -199,23 +199,55 @@ function runCommand(raw) {
     case 'rel':
     case 'relate':
     case 'join':
-    case 'connect':
-      if (args.length < 4) return printCli('Usage: rel <person1> <parent|child|spouse|sibling> <person2>', 'err');
+    case 'connect': {
+      const relKeywords = ['parent', 'child', 'spouse', 'partner', 'sibling'];
+      let p1 = args[1];
+      let rType = args[2];
+      let p2 = args[3];
+
+      // If args.length > 4 or rType is not a keyword, look for a keyword in tokens
+      const kwIdx = args.findIndex((t, i) => i >= 2 && relKeywords.includes(t.toLowerCase()));
+      if (kwIdx !== -1 && kwIdx < args.length - 1) {
+        p1 = args.slice(1, kwIdx).join(' ');
+        rType = args[kwIdx];
+        p2 = args.slice(kwIdx + 1).join(' ');
+      }
+
+      if (!p1 || !rType || !p2) {
+        return printCli('Usage: rel <person1> <parent|child|spouse|sibling> <person2> (quotes optional)', 'err');
+      }
+
       try {
-        tree.addRelation(args[1], args[2], args[3]);
-        printCli(`Connected ${args[1]} [${args[2]}] ${args[3]}`, 'success');
+        tree.addRelation(p1, rType, p2);
+        printCli(`Connected ${p1} [${rType}] ${p2}`, 'success');
         render();
       } catch (err) {
         printCli(err.message, 'err');
       }
       break;
+    }
 
-    case 'find':
-      if (args.length < 3) return printCli('Usage: find <person1> <person2>', 'err');
-      const res = tree.findPath(args[1], args[2]);
+    case 'find': {
+      let p1 = args[1];
+      let p2 = args[2];
+
+      if (args.length > 3) {
+        // Check for 'and' or 'to' connector: find John Doe and Jane Doe
+        const splitIdx = args.findIndex((t, i) => i >= 2 && ['and', 'to'].includes(t.toLowerCase()));
+        if (splitIdx !== -1 && splitIdx < args.length - 1) {
+          p1 = args.slice(1, splitIdx).join(' ');
+          p2 = args.slice(splitIdx + 1).join(' ');
+        } else {
+          return printCli('Usage: find "Person 1" "Person 2" (wrap names in quotes)', 'err');
+        }
+      }
+
+      if (!p1 || !p2) return printCli('Usage: find <person1> <person2>', 'err');
+      const res = tree.findPath(p1, p2);
       if (res.error) printCli(res.error, 'err');
       else printCli(`Kinship Path: ${res.description}`, 'success');
       break;
+    }
 
     case 'list':
       printCli(`People (${tree.people.size}):`, 'res');
