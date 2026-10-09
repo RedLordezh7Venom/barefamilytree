@@ -5,16 +5,16 @@
 }
 
 :root {
-  --bg-color: #0d1117;
-  --surface-color: #161b22;
-  --surface-border: #30363d;
+  --bg-color: #0b0e14;
+  --surface-color: #151921;
+  --surface-border: #262c36;
   --text-primary: #e6edf3;
   --text-muted: #8b949e;
   --accent: #58a6ff;
-  --accent-hover: #1f6feb;
-  --node-bg: #21262d;
+  --node-bg: #1c2128;
   --node-border: #388bfd;
   --node-text: #f0f6fc;
+  --union-color: #d2a8ff;
   --cli-bg: #030406fa;
   --cli-border: #30363d;
   --cli-green: #3fb950;
@@ -122,35 +122,14 @@ button.danger:hover {
   border-color: var(--danger);
 }
 
-/* Connect Mode Banner */
-#connectBanner {
-  background: #1f3a5f;
-  color: #c8e1ff;
-  border-bottom: 1px solid #388bfd;
-  padding: 8px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.88rem;
-  z-index: 15;
-}
-
-#connectBanner strong {
-  color: #fff;
-}
-
 /* Canvas Viewport */
 #viewport {
   flex: 1;
   position: relative;
   overflow: hidden;
-  background: radial-gradient(#1f242c 1px, transparent 1px);
+  background: radial-gradient(#1a202c 1.2px, transparent 1.2px);
   background-size: 24px 24px;
-  cursor: grab;
-}
-
-#viewport:active {
-  cursor: grabbing;
+  cursor: default;
 }
 
 #treeCanvas {
@@ -161,13 +140,36 @@ button.danger:hover {
   left: 0;
 }
 
-/* SVG Elements */
+/* Marriage / Union Line between partners */
+.edge-spouse {
+  fill: none;
+  stroke: var(--union-color);
+  stroke-width: 2.5px;
+  stroke-dasharray: 4, 3;
+}
+
+/* Union Junction Dot */
+.union-junction {
+  fill: var(--union-color);
+  stroke: #151921;
+  stroke-width: 2.5px;
+  cursor: pointer;
+  transition: transform 0.15s, r 0.15s;
+}
+
+.union-junction:hover {
+  r: 8px;
+  fill: #fff;
+  filter: drop-shadow(0 0 6px var(--union-color));
+}
+
+/* Child Branch Lines (Tree Stem & Drop lines) */
 .edge-parent {
   fill: none;
   stroke: #58a6ff;
   stroke-width: 2.2px;
   stroke-linecap: round;
-  transition: stroke 0.2s;
+  stroke-linejoin: round;
 }
 
 .edge-parent.highlighted {
@@ -175,46 +177,33 @@ button.danger:hover {
   stroke-width: 3.5px;
 }
 
-.edge-spouse {
-  fill: none;
-  stroke: #d2a8ff;
-  stroke-width: 2.2px;
-  stroke-dasharray: 4, 4;
-}
-
-.edge-spouse.highlighted {
-  stroke: var(--gold);
-  stroke-width: 3.5px;
-}
-
+/* Person Node Groups */
 .node-group {
-  cursor: pointer;
+  cursor: grab;
   user-select: none;
+}
+
+.node-group:active {
+  cursor: grabbing;
 }
 
 .node-card {
   fill: var(--node-bg);
   stroke: var(--node-border);
-  stroke-width: 1.5px;
-  rx: 8px;
-  transition: all 0.15s;
+  stroke-width: 1.8px;
+  rx: 10px;
+  transition: stroke 0.15s, filter 0.15s;
 }
 
 .node-group:hover .node-card {
   stroke: #79c0ff;
-  filter: drop-shadow(0 2px 8px rgba(88, 166, 255, 0.3));
+  filter: drop-shadow(0 2px 10px rgba(88, 166, 255, 0.35));
 }
 
 .node-group.selected .node-card {
   stroke: #3fb950;
   stroke-width: 2.5px;
-  filter: drop-shadow(0 0 10px rgba(63, 185, 80, 0.4));
-}
-
-.node-group.connect-source .node-card {
-  stroke: #e3b341;
-  stroke-width: 2.5px;
-  filter: drop-shadow(0 0 12px rgba(227, 179, 65, 0.6));
+  filter: drop-shadow(0 0 12px rgba(63, 185, 80, 0.5));
 }
 
 .node-group.path-highlight .node-card {
@@ -226,11 +215,24 @@ button.danger:hover {
 .node-text {
   fill: var(--node-text);
   font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 13.5px;
+  font-weight: 600;
   pointer-events: none;
   text-anchor: middle;
   dominant-baseline: middle;
+}
+
+.node-handle {
+  fill: #388bfd;
+  stroke: #0d1117;
+  stroke-width: 2px;
+  opacity: 0.6;
+  transition: opacity 0.15s, r 0.15s;
+}
+
+.node-group:hover .node-handle {
+  opacity: 1;
+  r: 7px;
 }
 
 /* Floating Node Actions Bar */
@@ -241,8 +243,8 @@ button.danger:hover {
   border: 1px solid #30363d;
   border-radius: 8px;
   padding: 8px 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
   z-index: 50;
   display: flex;
   flex-direction: column;
@@ -286,7 +288,7 @@ button.danger:hover {
   font-family: var(--font-mono);
   font-size: 0.85rem;
   font-weight: 600;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
   z-index: 100;
   cursor: pointer;
   transition: transform 0.15s, background 0.15s;

@@ -11,26 +11,21 @@
   <header>
     <div class="brand">
       <span class="logo-text">🌳 Bare Family Tree</span>
-      <span class="badge">Ponytail</span>
-      <div class="stats" id="treeStats">0 people · 0 relations</div>
+      <span class="badge">Union Model</span>
+      <div class="stats" id="treeStats">0 people · 0 unions</div>
     </div>
     <div class="toolbar">
       <button class="primary" id="btnNewPerson">+ Person</button>
       <button id="btnNewRelation">+ Relation</button>
       <button id="btnFindKin">🔍 Find Kinship</button>
+      <button id="btnAutoLayout">Auto Arrange</button>
       <button id="btnSample">Load Sample</button>
       <button id="btnReset">Clear</button>
     </div>
   </header>
 
-  <!-- Connect Mode Banner -->
-  <div id="connectBanner" style="display: none;">
-    <span>Connecting from <strong id="connectSourceText">...</strong>. Click any person to create relation.</span>
-    <button id="cancelConnectBtn">Cancel</button>
-  </div>
-
   <!-- Interactive SVG Canvas Viewport -->
-  <main id="viewport" title="Click a person to manage, drag canvas to pan, scroll wheel to zoom, double-click canvas to add person">
+  <main id="viewport" title="Drag cards to position, click card to add relations, drag canvas to pan, scroll to zoom">
     <svg id="treeCanvas">
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -48,9 +43,8 @@
       <div class="actions-header">Selected: <strong id="actionPersonName"></strong></div>
       <div class="actions-buttons">
         <button id="actionAddChild" title="Add Child">+ 👶 Child</button>
+        <button id="actionAddSpouse" title="Add Partner/Spouse">+ 💍 Partner</button>
         <button id="actionAddParent" title="Add Parent">+ 👴 Parent</button>
-        <button id="actionAddSpouse" title="Add Spouse/Partner">+ 💍 Spouse</button>
-        <button id="actionConnect" title="Connect to another person">🔗 Connect to...</button>
         <button id="actionDelete" class="danger" title="Delete Person">🗑 Delete</button>
       </div>
     </div>
@@ -72,17 +66,18 @@
       <span style="color: #8b949e; font-size: 0.75rem;">Quick:</span>
       <span class="cli-chip" data-cmd="help">help</span>
       <span class="cli-chip" data-cmd="add ">add &lt;name&gt;</span>
-      <span class="cli-chip" data-cmd="rel ">rel &lt;p1&gt; &lt;type&gt; &lt;p2&gt;</span>
+      <span class="cli-chip" data-cmd="partner ">partner &lt;p1&gt; &lt;p2&gt;</span>
+      <span class="cli-chip" data-cmd="child ">child &lt;p1&gt; [p2] &lt;child&gt;</span>
       <span class="cli-chip" data-cmd="find ">find &lt;p1&gt; &lt;p2&gt;</span>
       <span class="cli-chip" data-cmd="list">list</span>
       <span class="cli-chip" data-cmd="sample">sample</span>
     </div>
     <div class="cli-output" id="cliOutput">
-      <div class="cli-log-help">🌳 Bare Family Tree CLI v1.0. Type "help" or click chips above. Press "E" or Esc to toggle.</div>
+      <div class="cli-log-help">🌳 Bare Family Tree CLI. Type "help" or click chips above. Press "E" or Esc to toggle.</div>
     </div>
     <div class="cli-input-line">
       <span class="cli-prompt">tree&gt;</span>
-      <input type="text" id="cliInput" placeholder="Type command (e.g. add Alice, rel Alice parent Bob)..." autocomplete="off" spellcheck="false">
+      <input type="text" id="cliInput" placeholder="add mom, partner mom dad, child mom dad egg..." autocomplete="off" spellcheck="false">
     </div>
   </div>
 
@@ -92,7 +87,7 @@
       <h3>Add Person</h3>
       <div class="form-group">
         <label for="personNameInput">Full Name</label>
-        <input type="text" id="personNameInput" placeholder="e.g. Eleanor Vance">
+        <input type="text" id="personNameInput" placeholder="e.g. John Doe">
       </div>
       <div class="modal-actions">
         <button id="cancelPersonModal">Cancel</button>
@@ -101,26 +96,25 @@
     </div>
   </div>
 
-  <!-- Modal: Add / Connect Relation -->
+  <!-- Modal: Add Relation (Union or Child - NO sibling option, siblings are inferred) -->
   <div class="modal-overlay" id="modalRelation">
     <div class="modal-box">
       <h3>Add Relation</h3>
       <div class="form-group">
         <label for="relPersonA">Person 1</label>
-        <input type="text" id="relPersonA" placeholder="Name (e.g. John)" list="peopleDataList">
+        <input type="text" id="relPersonA" placeholder="Name (e.g. mom)" list="peopleDataList">
       </div>
       <div class="form-group">
         <label for="relTypeSelect">Relationship</label>
         <select id="relTypeSelect">
+          <option value="partner">is partner / spouse of (Union)</option>
           <option value="parent">is parent of</option>
           <option value="child">is child of</option>
-          <option value="spouse">is spouse / partner of</option>
-          <option value="sibling">is sibling of</option>
         </select>
       </div>
       <div class="form-group">
         <label for="relPersonB">Person 2</label>
-        <input type="text" id="relPersonB" placeholder="Name (e.g. Mary)" list="peopleDataList">
+        <input type="text" id="relPersonB" placeholder="Name (e.g. dad)" list="peopleDataList">
       </div>
       <div class="modal-actions">
         <button id="cancelRelModal">Cancel</button>
@@ -135,11 +129,11 @@
       <h3>🔍 Trace Kinship Path</h3>
       <div class="form-group">
         <label for="kinPersonA">First Person</label>
-        <input type="text" id="kinPersonA" placeholder="e.g. Leo" list="peopleDataList">
+        <input type="text" id="kinPersonA" placeholder="e.g. egg" list="peopleDataList">
       </div>
       <div class="form-group">
         <label for="kinPersonB">Second Person</label>
-        <input type="text" id="kinPersonB" placeholder="e.g. Clara" list="peopleDataList">
+        <input type="text" id="kinPersonB" placeholder="e.g. egg2" list="peopleDataList">
       </div>
       <div id="kinResult" style="margin-top: 10px; font-size: 0.88rem; min-height: 24px; font-weight: 500;"></div>
       <div class="modal-actions">
@@ -151,7 +145,6 @@
 
   <datalist id="peopleDataList"></datalist>
 
-  <!-- Plain script: zero CORS restrictions on file:// -->
   <script src="app.js"></script>
 </body>
 </html>

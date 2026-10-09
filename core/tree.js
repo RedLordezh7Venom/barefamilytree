@@ -1,32 +1,32 @@
-// core/tree.js - Bare family tree data structure and graph operations
+// core/tree.js - Union-based Bare Family Tree Engine
 
 export class FamilyTree {
   constructor() {
-    this.people = new Map(); // id -> { id, name }
-    this.relations = []; // { from, to, type } where type: 'parent' | 'spouse'
+    this.people = new Map(); // id -> { id, name, x, y }
+    this.unions = []; // { id, partnerA, partnerB, children: [] }
   }
 
-  // Helper to normalize names
   _norm(name) {
     return (name || '').trim();
   }
 
   getPerson(name) {
+    if (!name) return null;
     const norm = this._norm(name).toLowerCase();
     for (const p of this.people.values()) {
-      if (p.name.toLowerCase() === norm) return p;
+      if (p.name.toLowerCase() === norm || p.id === name) return p;
     }
     return null;
   }
 
-  addPerson(name) {
+  addPerson(name, x = null, y = null) {
     const clean = this._norm(name);
     if (!clean) throw new Error('Person name cannot be empty');
     const existing = this.getPerson(clean);
     if (existing) return existing;
 
     const id = 'p_' + Math.random().toString(36).substring(2, 9);
-    const person = { id, name: clean };
+    const person = { id, name: clean, x, y };
     this.people.set(id, person);
     return person;
   }
@@ -39,46 +39,148 @@ export class FamilyTree {
     const p = this.getPerson(name);
     if (!p) return false;
     this.people.delete(p.id);
-    this.relations = this.relations.filter(r => r.from !== p.id && r.to !== p.id);
+
+    // Remove from unions
+    this.unions = this.unions.filter(u => {
+      // If was a partner, remove union or make single partner
+      if (u.partnerA === p.id && u.partnerB === p.id) return false;
+      if (u.partnerA === p.id) {
+        u.partnerA = u.partnerB;
+        u.partnerB = null;
+      } else if (u.partnerB === p.id) {
+        u.partnerB = null;
+      }
+      // Remove from children
+      u.children = u.children.filter(cid => cid !== p.id);
+      // Keep union only if it has at least one partner or children
+      return u.partnerA !== null || u.children.length > 0;
+    });
+
     return true;
   }
 
-  addRelation(nameA, relType, nameB) {
-    const a = this.getOrCreate(nameA);
-    const b = this.getOrCreate(nameB);
-    if (a.id === b.id) throw new Error('Cannot relate a person to themselves');
+  // Find or create union between two partners
+  getOrCreateUnion(nameA, nameB = null) {
+    const pA = this.getOrCreate(nameA);
+    const pB = nameB ? this.getOrCreate(nameB) : null;
+    if (pB && pA.id === pB.id) throw new Error('Cannot create union with oneself');
 
-    const type = relType.toLowerCase().trim();
-
-    if (type === 'parent') {
-      // a is parent of b
-      this._addDirectedEdge(a.id, b.id, 'parent');
-    } else if (type === 'child') {
-      // a is child of b => b is parent of a
-      this._addDirectedEdge(b.id, a.id, 'parent');
-    } else if (type === 'spouse' || type === 'partner') {
-      this._addSpouseEdge(a.id, b.id);
-    } else if (type === 'sibling') {
-      // Find parents of B or create a shared parent anchor
-      const parentsB = this.getParents(b.id);
-      if (parentsB.length > 0) {
-        parentsB.forEach(p => this._addDirectedEdge(p.id, a.id, 'parent'));
+    // Check if union already exists
+    for (const u of this.unions) {
+      if (pB) {
+        if ((u.partnerA === pA.id && u.partnerB === pB.id) ||
+            (u.partnerA === pB.id && u.partnerB === pA.id)) {
+          return u;
+        }
       } else {
-        const parentsA = this.getParents(a.id);
-        if (parentsA.length > 0) {
-          parentsA.forEach(p => this._addDirectedEdge(p.id, b.id, 'parent'));
-        } else {
-          // create a generic parent node
-          const sharedParent = this.addPerson(`${a.name} & ${b.name}'s Parent`);
-          this._addDirectedEdge(sharedParent.id, a.id, 'parent');
-          this._addDirectedEdge(sharedParent.id, b.id, 'parent');
+        if (u.partnerA === pA.id && !u.partnerB) {
+          return u;
         }
       }
-    } else {
-      throw new Error(`Unknown relation type "${relType}". Use: parent, child, spouse, or sibling.`);
     }
 
-    return { a, type, b };
+    const id = 'u_' + Math.random().toString(36).substring(2, 9);
+    const union = {
+      id,
+      partnerA: pA.id,
+      partnerB: pB ? pB.id : null,
+      children: []
+    };
+    this.unions.push(union);
+    return union;
+  }
+
+  // Add child to a union of parentA and optional parentB
+  addChild(parentA, childName, parentB = null) {
+    const pA = this.getOrCreate(parentA);
+    const child = this.getOrCreate(childName);
+    if (child.id === pA.id) throw new Error('Child cannot be their own parent');
+    if (parentB) {
+      const pB = this.getOrCreate(parentB);
+      if (child.id === pB.id) throw new Error('Child cannot be their own parent');
+    }
+
+    // Check ancestor cycle
+    if (this.isAncestor(child.id, pA.id)) {
+      throw new Error(`Cannot add child: ${pA.name} is a descendant of ${child.name}`);
+    }
+    if (parentB && this.isAncestor(child.id, this.getPerson(parentB).id)) {
+      throw new Error(`Cannot add child: ${parentB} is a descendant of ${child.name}`);
+    }
+
+    // If parentB is not specified, check if pA already has a single union with a spouse
+    let union = null;
+    if (!parentB) {
+      const pAUnions = this.unions.filter(u => u.partnerA === pA.id || u.partnerB === pA.id);
+      if (pAUnions.length === 1) {
+        union = pAUnions[0];
+      }
+    }
+
+    if (!union) {
+      union = this.getOrCreateUnion(parentA, parentB);
+    }
+
+    if (!union.children.includes(child.id)) {
+      union.children.push(child.id);
+    }
+
+    return { union, child };
+  }
+
+  // Get parents of a child
+  getParents(childId) {
+    const parents = [];
+    for (const u of this.unions) {
+      if (u.children.includes(childId)) {
+        if (u.partnerA) parents.push(this.people.get(u.partnerA));
+        if (u.partnerB) parents.push(this.people.get(u.partnerB));
+      }
+    }
+    return parents.filter(Boolean);
+  }
+
+  // Get children of a person
+  getChildren(personId) {
+    const children = [];
+    for (const u of this.unions) {
+      if (u.partnerA === personId || u.partnerB === personId) {
+        for (const cid of u.children) {
+          const c = this.people.get(cid);
+          if (c && !children.some(x => x.id === c.id)) children.push(c);
+        }
+      }
+    }
+    return children;
+  }
+
+  // Get partners / spouses
+  getPartners(personId) {
+    const partners = [];
+    for (const u of this.unions) {
+      if (u.partnerA === personId && u.partnerB) {
+        partners.push(this.people.get(u.partnerB));
+      } else if (u.partnerB === personId && u.partnerA) {
+        partners.push(this.people.get(u.partnerA));
+      }
+    }
+    return partners.filter(Boolean);
+  }
+
+  // Inferred siblings: share at least one parent union
+  getSiblings(personId) {
+    const siblings = [];
+    for (const u of this.unions) {
+      if (u.children.includes(personId)) {
+        for (const cid of u.children) {
+          if (cid !== personId) {
+            const sib = this.people.get(cid);
+            if (sib && !siblings.some(x => x.id === sib.id)) siblings.push(sib);
+          }
+        }
+      }
+    }
+    return siblings;
   }
 
   isAncestor(ancestorId, personId, visited = new Set()) {
@@ -92,97 +194,50 @@ export class FamilyTree {
     return false;
   }
 
-  _addDirectedEdge(fromId, toId, type) {
-    if (type === 'parent' && this.isAncestor(toId, fromId)) {
-      throw new Error('Cannot add relation: would create an ancestral loop/cycle');
-    }
-    const exists = this.relations.some(r => r.from === fromId && r.to === toId && r.type === type);
-    if (!exists) {
-      this.relations.push({ from: fromId, to: toId, type });
-    }
-  }
-
-  _addSpouseEdge(id1, id2) {
-    const exists = this.relations.some(
-      r => r.type === 'spouse' && ((r.from === id1 && r.to === id2) || (r.from === id2 && r.to === id1))
-    );
-    if (!exists) {
-      this.relations.push({ from: id1, to: id2, type: 'spouse' });
-    }
-  }
-
-  getParents(personId) {
-    return this.relations
-      .filter(r => r.to === personId && r.type === 'parent')
-      .map(r => this.people.get(r.from))
-      .filter(Boolean);
-  }
-
-  getChildren(personId) {
-    return this.relations
-      .filter(r => r.from === personId && r.type === 'parent')
-      .map(r => this.people.get(r.to))
-      .filter(Boolean);
-  }
-
-  getSpouses(personId) {
-    return this.relations
-      .filter(r => r.type === 'spouse' && (r.from === personId || r.to === personId))
-      .map(r => this.people.get(r.from === personId ? r.to : r.from))
-      .filter(Boolean);
-  }
-
-  // Find shortest relationship path between two people using BFS
+  // Trace kinship path using BFS
   findPath(nameA, nameB) {
     const start = this.getPerson(nameA);
     const end = this.getPerson(nameB);
     if (!start) return { error: `Person "${nameA}" not found` };
     if (!end) return { error: `Person "${nameB}" not found` };
-    if (start.id === end.id) return { path: [start.name], description: 'Same person' };
+    if (start.id === end.id) return { path: [start.name], nodeIds: [start.id], description: 'Same person' };
 
     const queue = [[start.id]];
     const visited = new Set([start.id]);
-    const edgeTaken = new Map(); // key `${u}->${v}` => description
+    const stepTaken = new Map();
 
     while (queue.length > 0) {
       const currentPath = queue.shift();
       const curr = currentPath[currentPath.length - 1];
 
       if (curr === end.id) {
-        // Build readable description
         const textSteps = [];
         for (let i = 0; i < currentPath.length - 1; i++) {
           const u = currentPath[i];
           const v = currentPath[i + 1];
           const uName = this.people.get(u).name;
           const vName = this.people.get(v).name;
-          const relDesc = edgeTaken.get(`${u}->${v}`);
+          const relDesc = stepTaken.get(`${u}->${v}`);
           textSteps.push(`${uName} ${relDesc} ${vName}`);
         }
         return {
           path: currentPath.map(id => this.people.get(id).name),
-          steps: textSteps,
+          nodeIds: currentPath,
           description: textSteps.join(' ➔ ')
         };
       }
 
-      // Check all neighbors: parents, children, spouses
       const neighbors = [];
-      for (const p of this.getParents(curr)) {
-        neighbors.push({ id: p.id, desc: 'is child of' });
-      }
-      for (const c of this.getChildren(curr)) {
-        neighbors.push({ id: c.id, desc: 'is parent of' });
-      }
-      for (const s of this.getSpouses(curr)) {
-        neighbors.push({ id: s.id, desc: 'is spouse of' });
-      }
+      for (const p of this.getParents(curr)) neighbors.push({ id: p.id, desc: 'is child of' });
+      for (const c of this.getChildren(curr)) neighbors.push({ id: c.id, desc: 'is parent of' });
+      for (const s of this.getPartners(curr)) neighbors.push({ id: s.id, desc: 'is partner of' });
+      for (const sib of this.getSiblings(curr)) neighbors.push({ id: sib.id, desc: 'is sibling of' });
 
-      for (const neighbor of neighbors) {
-        if (!visited.has(neighbor.id)) {
-          visited.add(neighbor.id);
-          edgeTaken.set(`${curr}->${neighbor.id}`, neighbor.desc);
-          queue.push([...currentPath, neighbor.id]);
+      for (const nb of neighbors) {
+        if (!visited.has(nb.id)) {
+          visited.add(nb.id);
+          stepTaken.set(`${curr}->${nb.id}`, nb.desc);
+          queue.push([...currentPath, nb.id]);
         }
       }
     }
@@ -190,18 +245,16 @@ export class FamilyTree {
     return { path: null, description: `No connection found between ${start.name} and ${end.name}` };
   }
 
-  // Compute 2D generational layout coordinates
+  // Auto layout calculation: generational rows with partners side-by-side & union junction
   computeLayout() {
     const nodes = Array.from(this.people.values());
-    if (nodes.length === 0) return { nodes: [], edges: [] };
+    if (nodes.length === 0) return { nodes: [], unions: [] };
 
-    // Find generations: roots (no parents) start at gen 0
     const genMap = new Map();
     const visited = new Set();
 
-    // Assign generation depths (guarded against recursive loops)
     const assignGen = (id, currentGen) => {
-      if (currentGen > 50) return; // Prevent runaway recursion
+      if (currentGen > 50) return;
       const prev = genMap.get(id) ?? -Infinity;
       if (currentGen > prev) {
         genMap.set(id, currentGen);
@@ -209,11 +262,11 @@ export class FamilyTree {
       if (visited.has(`${id}:${currentGen}`)) return;
       visited.add(`${id}:${currentGen}`);
 
-      // Spouses share generation
-      for (const sp of this.getSpouses(id)) {
-        const spGen = Math.max(genMap.get(sp.id) ?? -Infinity, currentGen);
-        genMap.set(sp.id, spGen);
-        genMap.set(id, spGen);
+      // Partners share generation
+      for (const pt of this.getPartners(id)) {
+        const ptGen = Math.max(genMap.get(pt.id) ?? -Infinity, currentGen);
+        genMap.set(pt.id, ptGen);
+        genMap.set(id, ptGen);
       }
 
       // Children are gen + 1
@@ -222,20 +275,18 @@ export class FamilyTree {
       }
     };
 
-    // Start with people who have no parents
+    // Roots (people with no parents) start at gen 0
     for (const node of nodes) {
       if (this.getParents(node.id).length === 0) {
         assignGen(node.id, 0);
       }
     }
-    // Any remaining disconnected nodes
     for (const node of nodes) {
       if (!genMap.has(node.id)) {
         assignGen(node.id, 0);
       }
     }
 
-    // Group nodes by generation
     const genBuckets = new Map();
     for (const node of nodes) {
       const g = genMap.get(node.id) || 0;
@@ -243,11 +294,10 @@ export class FamilyTree {
       genBuckets.get(g).push(node);
     }
 
-    // Calculate (x, y) coordinates
-    const CARD_WIDTH = 140;
-    const CARD_HEIGHT = 50;
+    const CARD_WIDTH = 150;
+    const CARD_HEIGHT = 56;
     const GAP_X = 60;
-    const GAP_Y = 90;
+    const GAP_Y = 100;
 
     const positionedNodes = [];
     const nodeCoords = new Map();
@@ -255,26 +305,28 @@ export class FamilyTree {
     const sortedGens = Array.from(genBuckets.keys()).sort((a, b) => a - b);
     sortedGens.forEach((gen) => {
       const rawRow = genBuckets.get(gen);
-      // Group spouses adjacently
+      // Order row so partners stay adjacent
       const row = [];
       const placed = new Set();
       for (const person of rawRow) {
         if (placed.has(person.id)) continue;
         row.push(person);
         placed.add(person.id);
-        for (const sp of this.getSpouses(person.id)) {
-          if (!placed.has(sp.id) && rawRow.some(p => p.id === sp.id)) {
-            row.push(sp);
-            placed.add(sp.id);
+        for (const pt of this.getPartners(person.id)) {
+          if (!placed.has(pt.id) && rawRow.some(p => p.id === pt.id)) {
+            row.push(pt);
+            placed.add(pt.id);
           }
         }
       }
+
       const totalWidth = row.length * CARD_WIDTH + (row.length - 1) * GAP_X;
       const startX = -totalWidth / 2;
 
       row.forEach((person, idx) => {
-        const x = startX + idx * (CARD_WIDTH + GAP_X);
-        const y = gen * (CARD_HEIGHT + GAP_Y);
+        // If person has custom dragged coordinates (x, y), preserve them
+        const x = person.x !== null && person.x !== undefined ? person.x : (startX + idx * (CARD_WIDTH + GAP_X));
+        const y = person.y !== null && person.y !== undefined ? person.y : (gen * (CARD_HEIGHT + GAP_Y));
         const pNode = {
           id: person.id,
           name: person.name,
@@ -289,38 +341,56 @@ export class FamilyTree {
       });
     });
 
-    // Map edges with coordinates
-    const positionedEdges = [];
-    for (const rel of this.relations) {
-      const from = nodeCoords.get(rel.from);
-      const to = nodeCoords.get(rel.to);
-      if (from && to) {
-        positionedEdges.push({
-          type: rel.type,
-          from,
-          to
-        });
+    // Compute union junction coordinates and child branches
+    const renderedUnions = [];
+    for (const u of this.unions) {
+      const pA = nodeCoords.get(u.partnerA);
+      const pB = u.partnerB ? nodeCoords.get(u.partnerB) : null;
+      if (!pA) continue;
+
+      let junctionX, junctionY;
+      if (pB) {
+        // Center between partners
+        const leftP = pA.x < pB.x ? pA : pB;
+        const rightP = pA.x < pB.x ? pB : pA;
+        junctionX = (leftP.x + leftP.width + rightP.x) / 2;
+        junctionY = leftP.y + leftP.height / 2;
+      } else {
+        // Single parent bottom
+        junctionX = pA.x + pA.width / 2;
+        junctionY = pA.y + pA.height;
       }
+
+      const children = u.children.map(cid => nodeCoords.get(cid)).filter(Boolean);
+
+      renderedUnions.push({
+        id: u.id,
+        partnerA: pA,
+        partnerB: pB,
+        junctionX,
+        junctionY,
+        children
+      });
     }
 
-    return { nodes: positionedNodes, edges: positionedEdges };
+    return { nodes: positionedNodes, unions: renderedUnions };
   }
 
   toJSON() {
     return {
       people: Array.from(this.people.values()),
-      relations: this.relations
+      unions: this.unions
     };
   }
 
   fromJSON(data) {
     this.people.clear();
-    this.relations = [];
+    this.unions = [];
     if (data && Array.isArray(data.people)) {
       data.people.forEach(p => this.people.set(p.id, p));
     }
-    if (data && Array.isArray(data.relations)) {
-      this.relations = data.relations;
+    if (data && Array.isArray(data.unions)) {
+      this.unions = data.unions;
     }
   }
 }
