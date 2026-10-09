@@ -10,140 +10,72 @@
   <!-- Header Bar -->
   <header>
     <div class="brand">
-      <span class="logo-text">🌳 Bare Family Tree</span>
-      <span class="badge">Union Model</span>
-      <div class="stats" id="treeStats">0 people · 0 unions</div>
+      <span class="logo">🌳 Bare Family Tree</span>
+      <span class="stats" id="statsCount">0 people · 0 unions</span>
     </div>
-    <div class="toolbar">
-      <button class="primary" id="btnNewPerson">+ Person</button>
-      <button id="btnNewRelation">+ Relation</button>
-      <button id="btnFindKin">🔍 Find Kinship</button>
-      <button id="btnAutoLayout">Auto Arrange</button>
-      <button id="btnSample">Load Sample</button>
-      <button id="btnReset">Clear</button>
+
+    <!-- Quick Direct Add Bar -->
+    <div class="add-bar">
+      <input type="text" id="directNameInput" placeholder="Person name (e.g. mom)" autocomplete="off">
+      <button class="btn-primary" id="btnDirectAdd">+ Add Person</button>
+      <div class="divider"></div>
+      <button id="btnQuickSample">Load Sample (Mom + Dad ➔ egg)</button>
+      <button id="btnClearAll">Clear Canvas</button>
     </div>
   </header>
 
-  <!-- Interactive SVG Canvas Viewport -->
-  <main id="viewport" title="Drag cards to position, click card to add relations, drag canvas to pan, scroll to zoom">
-    <svg id="treeCanvas">
+  <!-- Interactive Canvas -->
+  <main id="canvasContainer">
+    <!-- SVG layer for marriage lines and child branches -->
+    <svg id="treeSvg">
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#58a6ff"/>
         </marker>
       </defs>
-      <g id="transformLayer">
-        <g id="edgesLayer"></g>
-        <g id="nodesLayer"></g>
-      </g>
+      <g id="svgLinesLayer"></g>
     </svg>
 
-    <!-- Floating Node Action Toolbar (appears directly under selected person card) -->
-    <div id="nodeActionsBar" style="display: none;">
-      <div class="actions-header">Selected: <strong id="actionPersonName"></strong></div>
-      <div class="actions-buttons">
-        <button id="actionAddChild" title="Add Child">+ 👶 Child</button>
-        <button id="actionAddSpouse" title="Add Partner/Spouse">+ 💍 Partner</button>
-        <button id="actionAddParent" title="Add Parent">+ 👴 Parent</button>
-        <button id="actionDelete" class="danger" title="Delete Person">🗑 Delete</button>
-      </div>
+    <!-- HTML Cards Container for smooth native drag-and-drop & instant editing -->
+    <div id="cardsLayer"></div>
+
+    <!-- Drag connecting line preview -->
+    <svg id="dragPreviewSvg">
+      <line id="dragLine" x1="0" y1="0" x2="0" y2="0" style="display: none;"/>
+    </svg>
+
+    <!-- Canvas Helper Tip -->
+    <div class="canvas-tip">
+      💡 <strong>Tip:</strong> Drag cards anywhere. Drag card onto another to partner. Click <strong>[+ Child]</strong> on union line. Double-click canvas to add. Press <strong>E</strong> for CLI.
     </div>
   </main>
 
-  <!-- Floating CLI Trigger -->
-  <button id="cliBtn" title="Toggle Terminal CLI (Hotkey: E)">⌨ CLI [E]</button>
+  <!-- Floating CLI Button -->
+  <button id="cliToggleBtn" title="Toggle Terminal CLI (Hotkey: E)">⌨ CLI [E]</button>
 
-  <!-- CLI Terminal Overlay Drawer -->
+  <!-- CLI Terminal Drawer -->
   <div id="cliDrawer">
-    <div class="cli-header">
-      <div class="cli-title">
-        <span>Terminal CLI</span>
-        <span style="font-size: 0.72rem; color: #8b949e;">(Hotkey: E to toggle, Esc to close)</span>
-      </div>
-      <span class="cli-close" id="cliCloseBtn">✕</span>
+    <div class="cli-top">
+      <span>Terminal CLI (Press <strong>E</strong> or <strong>Esc</strong> to toggle)</span>
+      <button class="cli-close" id="cliCloseBtn">✕</button>
     </div>
-    <div class="cli-chips-bar">
-      <span style="color: #8b949e; font-size: 0.75rem;">Quick:</span>
-      <span class="cli-chip" data-cmd="help">help</span>
-      <span class="cli-chip" data-cmd="add ">add &lt;name&gt;</span>
-      <span class="cli-chip" data-cmd="partner ">partner &lt;p1&gt; &lt;p2&gt;</span>
-      <span class="cli-chip" data-cmd="child ">child &lt;p1&gt; [p2] &lt;child&gt;</span>
-      <span class="cli-chip" data-cmd="find ">find &lt;p1&gt; &lt;p2&gt;</span>
-      <span class="cli-chip" data-cmd="list">list</span>
-      <span class="cli-chip" data-cmd="sample">sample</span>
+    <div class="cli-chips">
+      <span class="chip" data-cmd="add ">add &lt;name&gt;</span>
+      <span class="chip" data-cmd="union ">union &lt;p1&gt; &lt;p2&gt;</span>
+      <span class="chip" data-cmd="child ">child &lt;p1&gt; &lt;p2&gt; &lt;child&gt;</span>
+      <span class="chip" data-cmd="del ">del &lt;name&gt;</span>
+      <span class="chip" data-cmd="sample">sample</span>
+      <span class="chip" data-cmd="list">list</span>
+      <span class="chip" data-cmd="help">help</span>
     </div>
-    <div class="cli-output" id="cliOutput">
-      <div class="cli-log-help">🌳 Bare Family Tree CLI. Type "help" or click chips above. Press "E" or Esc to toggle.</div>
+    <div class="cli-log" id="cliLog">
+      <div class="log-info">🌳 Bare Family Tree CLI. Type "help" or click commands above.</div>
     </div>
-    <div class="cli-input-line">
-      <span class="cli-prompt">tree&gt;</span>
-      <input type="text" id="cliInput" placeholder="add mom, partner mom dad, child mom dad egg..." autocomplete="off" spellcheck="false">
+    <div class="cli-input-box">
+      <span class="prompt">tree&gt;</span>
+      <input type="text" id="cliInputField" placeholder="add mom, union mom dad, child mom dad egg..." autocomplete="off">
     </div>
   </div>
-
-  <!-- Modal: Add Person -->
-  <div class="modal-overlay" id="modalPerson">
-    <div class="modal-box">
-      <h3>Add Person</h3>
-      <div class="form-group">
-        <label for="personNameInput">Full Name</label>
-        <input type="text" id="personNameInput" placeholder="e.g. John Doe">
-      </div>
-      <div class="modal-actions">
-        <button id="cancelPersonModal">Cancel</button>
-        <button class="primary" id="savePersonModal">Create</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Add Relation (Union or Child - NO sibling option, siblings are inferred) -->
-  <div class="modal-overlay" id="modalRelation">
-    <div class="modal-box">
-      <h3>Add Relation</h3>
-      <div class="form-group">
-        <label for="relPersonA">Person 1</label>
-        <input type="text" id="relPersonA" placeholder="Name (e.g. mom)" list="peopleDataList">
-      </div>
-      <div class="form-group">
-        <label for="relTypeSelect">Relationship</label>
-        <select id="relTypeSelect">
-          <option value="partner">is partner / spouse of (Union)</option>
-          <option value="parent">is parent of</option>
-          <option value="child">is child of</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="relPersonB">Person 2</label>
-        <input type="text" id="relPersonB" placeholder="Name (e.g. dad)" list="peopleDataList">
-      </div>
-      <div class="modal-actions">
-        <button id="cancelRelModal">Cancel</button>
-        <button class="primary" id="saveRelModal">Connect</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Find Kinship -->
-  <div class="modal-overlay" id="modalKinship">
-    <div class="modal-box">
-      <h3>🔍 Trace Kinship Path</h3>
-      <div class="form-group">
-        <label for="kinPersonA">First Person</label>
-        <input type="text" id="kinPersonA" placeholder="e.g. egg" list="peopleDataList">
-      </div>
-      <div class="form-group">
-        <label for="kinPersonB">Second Person</label>
-        <input type="text" id="kinPersonB" placeholder="e.g. egg2" list="peopleDataList">
-      </div>
-      <div id="kinResult" style="margin-top: 10px; font-size: 0.88rem; min-height: 24px; font-weight: 500;"></div>
-      <div class="modal-actions">
-        <button id="cancelKinModal">Close</button>
-        <button class="primary" id="calcKinModal">Trace Path</button>
-      </div>
-    </div>
-  </div>
-
-  <datalist id="peopleDataList"></datalist>
 
   <script src="app.js"></script>
 </body>
