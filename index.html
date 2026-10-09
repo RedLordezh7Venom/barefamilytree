@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bare Family Tree</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Header Bar -->
+  <header>
+    <div class="brand">
+      <span class="logo-text">🌳 Bare Family Tree</span>
+      <span class="badge">Ponytail Edition</span>
+      <div class="stats" id="treeStats">0 people · 0 relations</div>
+    </div>
+    <div class="toolbar">
+      <button class="primary" id="btnNewPerson">+ Person</button>
+      <button id="btnNewRelation">+ Relation</button>
+      <button id="btnFindKin">Find Kinship</button>
+      <button id="btnSample">Load Sample</button>
+      <button id="btnReset">Clear</button>
+    </div>
+  </header>
+
+  <!-- Interactive SVG Canvas Viewport -->
+  <main id="viewport">
+    <svg id="treeCanvas">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#58a6ff"/>
+        </marker>
+      </defs>
+      <!-- Container for pan & zoom transforms -->
+      <g id="transformLayer">
+        <g id="edgesLayer"></g>
+        <g id="nodesLayer"></g>
+      </g>
+    </svg>
+  </main>
+
+  <!-- Floating CLI Trigger -->
+  <button id="cliBtn" title="Toggle CLI (Hotkey: E)">⌨ CLI [E]</button>
+
+  <!-- CLI Terminal Overlay Drawer -->
+  <div id="cliDrawer">
+    <div class="cli-header">
+      <div class="cli-title">
+        <span>Terminal CLI</span>
+        <span style="font-size: 0.72rem; color: #8b949e;">(Hotkey: E to toggle, Esc to close)</span>
+      </div>
+      <span class="cli-close" id="cliCloseBtn">✕</span>
+    </div>
+    <div class="cli-output" id="cliOutput">
+      <div class="cli-log-help">🌳 Bare Family Tree CLI v1.0. Type "help" for commands. Press "E" or Esc to toggle.</div>
+    </div>
+    <div class="cli-input-line">
+      <span class="cli-prompt">tree&gt;</span>
+      <input type="text" id="cliInput" placeholder="add Alice, rel Alice parent Bob, find Alice Charlie..." autocomplete="off" spellcheck="false">
+    </div>
+  </div>
+
+  <!-- Modal: Add Person -->
+  <div class="modal-overlay" id="modalPerson">
+    <div class="modal-box">
+      <h3>Add Person</h3>
+      <div class="form-group">
+        <label for="personNameInput">Full Name</label>
+        <input type="text" id="personNameInput" placeholder="e.g. Eleanor Vance">
+      </div>
+      <div class="modal-actions">
+        <button id="cancelPersonModal">Cancel</button>
+        <button class="primary" id="savePersonModal">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add Relation -->
+  <div class="modal-overlay" id="modalRelation">
+    <div class="modal-box">
+      <h3>Add Relation</h3>
+      <div class="form-group">
+        <label for="relPersonA">Person 1</label>
+        <input type="text" id="relPersonA" placeholder="Name (e.g. John)">
+      </div>
+      <div class="form-group">
+        <label for="relTypeSelect">Relationship</label>
+        <select id="relTypeSelect">
+          <option value="parent">is parent of</option>
+          <option value="child">is child of</option>
+          <option value="spouse">is spouse / partner of</option>
+          <option value="sibling">is sibling of</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="relPersonB">Person 2</label>
+        <input type="text" id="relPersonB" placeholder="Name (e.g. Mary)">
+      </div>
+      <div class="modal-actions">
+        <button id="cancelRelModal">Cancel</button>
+        <button class="primary" id="saveRelModal">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
