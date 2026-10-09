@@ -18,6 +18,8 @@
   --cli-bg: #030406fa;
   --cli-border: #30363d;
   --cli-green: #3fb950;
+  --gold: #f1e05a;
+  --danger: #f85149;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
@@ -60,12 +62,17 @@ header {
 }
 
 .badge {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   background: #238636;
   color: #fff;
   padding: 2px 7px;
   border-radius: 10px;
   font-weight: 600;
+}
+
+.stats {
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
 .toolbar {
@@ -86,6 +93,7 @@ button {
   align-items: center;
   gap: 5px;
   transition: all 0.15s ease;
+  font-family: var(--font-sans);
 }
 
 button:hover {
@@ -104,10 +112,31 @@ button.primary:hover {
   background: #2ea043;
 }
 
-.stats {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin-left: 8px;
+button.danger {
+  color: var(--danger);
+  border-color: #491717;
+}
+
+button.danger:hover {
+  background: #3c1414;
+  border-color: var(--danger);
+}
+
+/* Connect Mode Banner */
+#connectBanner {
+  background: #1f3a5f;
+  color: #c8e1ff;
+  border-bottom: 1px solid #388bfd;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  z-index: 15;
+}
+
+#connectBanner strong {
+  color: #fff;
 }
 
 /* Canvas Viewport */
@@ -136,15 +165,26 @@ button.primary:hover {
 .edge-parent {
   fill: none;
   stroke: #58a6ff;
-  stroke-width: 2px;
+  stroke-width: 2.2px;
   stroke-linecap: round;
+  transition: stroke 0.2s;
+}
+
+.edge-parent.highlighted {
+  stroke: var(--gold);
+  stroke-width: 3.5px;
 }
 
 .edge-spouse {
   fill: none;
   stroke: #d2a8ff;
-  stroke-width: 2px;
+  stroke-width: 2.2px;
   stroke-dasharray: 4, 4;
+}
+
+.edge-spouse.highlighted {
+  stroke: var(--gold);
+  stroke-width: 3.5px;
 }
 
 .node-group {
@@ -157,17 +197,30 @@ button.primary:hover {
   stroke: var(--node-border);
   stroke-width: 1.5px;
   rx: 8px;
-  transition: stroke 0.15s;
+  transition: all 0.15s;
 }
 
 .node-group:hover .node-card {
   stroke: #79c0ff;
-  filter: drop-shadow(0 2px 8px rgba(88, 166, 255, 0.2));
+  filter: drop-shadow(0 2px 8px rgba(88, 166, 255, 0.3));
 }
 
 .node-group.selected .node-card {
   stroke: #3fb950;
   stroke-width: 2.5px;
+  filter: drop-shadow(0 0 10px rgba(63, 185, 80, 0.4));
+}
+
+.node-group.connect-source .node-card {
+  stroke: #e3b341;
+  stroke-width: 2.5px;
+  filter: drop-shadow(0 0 12px rgba(227, 179, 65, 0.6));
+}
+
+.node-group.path-highlight .node-card {
+  stroke: var(--gold);
+  stroke-width: 2.5px;
+  fill: #26241b;
 }
 
 .node-text {
@@ -180,12 +233,44 @@ button.primary:hover {
   dominant-baseline: middle;
 }
 
-.node-subtext {
-  fill: var(--text-muted);
-  font-family: var(--font-sans);
-  font-size: 10px;
-  pointer-events: none;
-  text-anchor: middle;
+/* Floating Node Actions Bar */
+#nodeActionsBar {
+  position: absolute;
+  transform: translate(-50%, 0);
+  background: #161b22fa;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: auto;
+  min-width: 220px;
+}
+
+.actions-header {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid #21262d;
+  padding-bottom: 4px;
+}
+
+.actions-header strong {
+  color: var(--text-primary);
+}
+
+.actions-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.actions-buttons button {
+  padding: 4px 8px;
+  font-size: 0.75rem;
 }
 
 /* Floating CLI Trigger Button */
@@ -196,18 +281,20 @@ button.primary:hover {
   background: #1f6feb;
   color: #fff;
   border: 1px solid #388bfd;
-  padding: 8px 14px;
+  padding: 9px 16px;
   border-radius: 20px;
   font-family: var(--font-mono);
   font-size: 0.85rem;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   z-index: 100;
   cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
 }
 
 #cliBtn:hover {
   background: #388bfd;
+  transform: translateY(-2px);
 }
 
 /* CLI Overlay Drawer */
@@ -216,11 +303,11 @@ button.primary:hover {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 320px;
+  height: 340px;
   background: var(--cli-bg);
   border-top: 1px solid var(--cli-border);
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
   z-index: 200;
@@ -263,6 +350,32 @@ button.primary:hover {
   color: #fff;
 }
 
+.cli-chips-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #0d1117;
+  border-bottom: 1px solid var(--cli-border);
+  overflow-x: auto;
+}
+
+.cli-chip {
+  background: #21262d;
+  color: #79c0ff;
+  border: 1px solid #30363d;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cli-chip:hover {
+  background: #30363d;
+  color: #fff;
+}
+
 .cli-output {
   flex: 1;
   padding: 12px 14px;
@@ -272,25 +385,11 @@ button.primary:hover {
   color: #d1d5db;
 }
 
-.cli-log-cmd {
-  color: #58a6ff;
-}
-
-.cli-log-res {
-  color: #c9d1d9;
-}
-
-.cli-log-success {
-  color: var(--cli-green);
-}
-
-.cli-log-err {
-  color: #f85149;
-}
-
-.cli-log-help {
-  color: #e3b341;
-}
+.cli-log-cmd { color: #58a6ff; }
+.cli-log-res { color: #c9d1d9; }
+.cli-log-success { color: var(--cli-green); }
+.cli-log-err { color: #f85149; }
+.cli-log-help { color: #e3b341; }
 
 .cli-input-line {
   display: flex;
@@ -321,8 +420,8 @@ button.primary:hover {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(2px);
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(3px);
   z-index: 300;
   align-items: center;
   justify-content: center;
@@ -339,7 +438,7 @@ button.primary:hover {
   padding: 20px;
   width: 380px;
   max-width: 90vw;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6);
 }
 
 .modal-box h3 {
